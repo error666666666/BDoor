@@ -105,13 +105,14 @@ private:
 					return crv;
 				}
 				string recvmess;
-				if (udp::SendtoMess(udp_socket, udp_addr, FormatJson(name,command).dump()) == 0) {
+				if (udp::SendtoBase64(udp_socket, udp_addr, FormatJson(name,command).dump()) == 0) {
 					returnmess = "发送错误";
 					crv.revalue = ERROR;
 					return crv;
 				}
 				cout << "发送" << endl;
-				if (udp::RecvfromMess(udp_socket, udp_addr, recvmess) == 0) {
+				sockaddr_in sender_addr;
+				if (udp::RecvfromBase64(udp_socket,sender_addr,recvmess) == 0) {
 					returnmess = "接收错误";
 					crv.revalue = ERROR;
 					return crv;
@@ -231,17 +232,17 @@ private:
 	private:
 		const string name = "cmd";
 		SOCKET &connect_socket;
+		sockaddr_in &connect_addr;
 		int step = 0;
 
 	public:
-		Cmd(SOCKET &connect_socket_a):connect_socket(connect_socket_a) {
+		Cmd(SOCKET &connect_socket_a,sockaddr_in &connect_addr_a):connect_socket(connect_socket_a),connect_addr(connect_addr_a) {
 
 		}
 		CommandReValue Func(string command, string& returnmess) {
 			CommandReValue crv;
 			if (step == 0) {
 				if (command == name) {
-					tcp::SendBase64(connect_socket, FormatJson("null", "null").dump());
 					step++;
 					crv.revalue = ENTRANCE;
 					return crv;
@@ -257,26 +258,26 @@ private:
 					crv.revalue = END;
 					return crv;
 				}
-				string recvmess;
+				connect_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+				connect(connect_socket, (const sockaddr*)&connect_addr, sizeof(connect_addr));
 				tcp::SendBase64(connect_socket, FormatJson(name, command).dump());
+				string recvmess;
 				tcp::RecvBase64(connect_socket, recvmess);
 				returnmess = DecodeStrInBase64(json::parse(recvmess)[CONTENT]);
+				shutdown(connect_socket, SD_BOTH);
+				if (connect_socket != INVALID_SOCKET) { closesocket(connect_socket); }
 				crv.revalue = ENTRANCE;
 				return crv;
-			}
-			
-			
+			}	
 		}
 	};
 	const string name = "tcp";
 	SOCKET listen_socket, connect_socket;
 	sockaddr_in connect_addr,listen_addr;
-	string	connect_ip;
+	Command* entrance = nullptr;
 	int step = 0;
-	Cmd cmd = Cmd(connect_socket);
+	Cmd cmd = Cmd(connect_socket,connect_addr);
 	vector<Command*> command_list = { &cmd };
-
-
 	int CreateListenSocket() {
 		listen_socket = socket(AF_INET,SOCK_STREAM, IPPROTO_TCP);
 		memset(&listen_addr,0,sizeof(listen_addr));
@@ -284,6 +285,7 @@ private:
 		listen_addr.sin_port = htons(TCP_PORT);
 		listen_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 		bindport(listen_socket, (const sockaddr *)&listen_addr, sizeof(listen_addr));
+		return 1;
 	}
 	int ListenConnect() {
 		listen(listen_socket, 5);
@@ -291,7 +293,7 @@ private:
 		connect_socket = accept(listen_socket, (sockaddr*)&connect_addr,&connect_addr_len);
 		return 1;
 	}
-	int Connect(string ip) {
+	/*int Connect(string ip) {
 		connect_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		memset(&connect_addr, 0, sizeof(connect_addr));
 		connect_addr.sin_family = AF_INET;
@@ -299,9 +301,12 @@ private:
 		connect_addr.sin_port = htons(TCP_PORT);
 		connect(connect_socket, (const sockaddr*)&connect_addr, sizeof(connect_addr));
 		return 1;
-	}
+	}*/
 public:
-	Command* entrance = nullptr;
+	TCP() {
+		CreateListenSocket();
+		connect_addr = CreateSockAddrIn(TCP_PORT);
+	}
 	CommandReValue Func(string command,string &returnmess) override {
 		CommandReValue crv;
 		if (step == 0) {
@@ -314,7 +319,7 @@ public:
 					return crv;
 				}
 				if (check_ip(command_split[1])) {
-					connect_ip = command_split[1];
+					connect_addr.sin_addr.s_addr = inet_addr(command_split[1].data());
 					if (command_split[0] == "reversetcp") {
 						step = 10;
 					}
@@ -341,7 +346,6 @@ public:
 				crv.revalue = END;
 				return crv;
 			}
-			Connect(connect_ip);
 			CommandReValue Result;
 			bool is_com = false;
 			for (int i = 0; i < command_list.size(); i++) {
@@ -381,21 +385,13 @@ public:
 				}
 				if (is_entrance) { break; }
 			}
-			shutdown(connect_socket, SD_BOTH);
-			if (connect_socket != INVALID_SOCKET)
-			{
-				closesocket(connect_socket);
-			}
 			if (!is_com) {
 				returnmess = "'" + command + "'" + "不是任何指令";
 				crv.revalue = NOTCOM;
 				return crv;
 			}
-		}
-		else if (step == 2) {
+		}	
 
-		}
-		
 		if (step == 10) {
 			if (command == "返回") {
 				step = 0;
@@ -405,8 +401,8 @@ public:
 			SOCKET reverse_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 			sockaddr_in addr = CreateSockAddrIn(REVERSE_PORT);
 			bindport(reverse_socket, (const sockaddr*)&addr, sizeof(addr));
-			sockaddr_in target_addr = CreateSockAddrIn(connect_ip, REVERSE_PORT);
-			udp::SendtoMess(reverse_socket, target_addr, FormatJson(name, "reverse connect"));
+			sockaddr_in target_addr = CreateSockAddrIn(inet_ntoa(connect_addr.sin_addr), REVERSE_PORT);
+			udp::SendtoBase64(reverse_socket, target_addr, FormatJson(name, "reverse connect"));
 			ListenConnect();
 			CommandReValue Result;
 			bool is_com = false;

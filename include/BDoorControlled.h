@@ -106,7 +106,7 @@ private:
 				cout << "cmd调用" << endl;
 				string returnmess;
 				run_cmd_with_txt(command_json[CONTENT], returnmess);
-				udp::SendtoMess(udp_socket, udp_addr, FormatJson(name,EncodeStrInBase64(returnmess)).dump());
+				udp::SendtoBase64(udp_socket, udp_addr, FormatJson(name,EncodeStrInBase64(returnmess)).dump());
 				cout << returnmess << endl;
 				return 1;
 			}
@@ -131,7 +131,7 @@ public:
 		while (true) {
 			string recvmess;
 			cout << "等待接收" << endl;
-			udp::RecvfromMess(udp_socket, sender_addr, recvmess);
+			udp::RecvfromBase64(udp_socket, sender_addr, recvmess);
 			cout << inet_ntoa(sender_addr.sin_addr) << "/UDP>" << recvmess << endl;
 			for (int i = 0; i < remote_command_list.size(); i++) {
 				remote_command_list[i]->Func(recvmess);
@@ -151,7 +151,7 @@ private:
 
 		}
 		int Func(string command)override {
-			json command_json = json::parse(DecodeStrInBase64(command));	
+			json command_json = json::parse(command);	
 			if (command_json[COMMANDNAME] == name) {
 				cout << "cmd调用" << endl;
 				string returnmess;
@@ -186,7 +186,7 @@ public:
 			connect_socket = accept(listen_socket, (sockaddr*)&connect_addr, &connect_addr_len);
 			cout << inet_ntoa(connect_addr.sin_addr) << endl;
 			string recvmess;
-			tcp::RecvMess(connect_socket, recvmess);
+			tcp::RecvBase64(connect_socket, recvmess);
 			cout << inet_ntoa(connect_addr.sin_addr) << "/TCP>" << recvmess << endl;
 			for (int i = 0; i < remote_command_list.size(); i++) {
 				remote_command_list[i]->Func(recvmess);
@@ -204,7 +204,7 @@ public:
 		while (true) {
 			sockaddr_in sender_addr;
 			string recvmess;
-			udp::RecvfromMess(reverse_socket, sender_addr, recvmess);
+			udp::RecvfromBase64(reverse_socket, sender_addr, recvmess);
 			cout << inet_ntoa(sender_addr.sin_addr) << ": 反向连接请求" << endl;
 			json requestmess;
 			requestmess.parse(recvmess);
@@ -216,7 +216,7 @@ public:
 					addr.sin_port = htons(TCP_PORT);
 					addr.sin_addr.s_addr = inet_addr(inet_ntoa(sender_addr.sin_addr));
 					connect(connect_socket, (const sockaddr*)&addr, sizeof(addr));
-					tcp::RecvMess(connect_socket, recvmess);
+					tcp::RecvBase64(connect_socket, recvmess);
 					cout << inet_ntoa(addr.sin_addr) << "/TCP>" << recvmess << endl;
 					for (int i = 0; i < remote_command_list.size(); i++) {
 						remote_command_list[i]->Func(recvmess);
