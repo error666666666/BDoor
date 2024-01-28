@@ -3,6 +3,7 @@
 #include <ws2tcpip.h>
 #include <nlohmann/json.hpp>
 #include <other/tools.h>
+#include <protocol\errorstr.h>
 #pragma comment(lib,"ws2_32.lib") 
 using json = nlohmann::json;
 #define EMPTYCHAR "0"
@@ -19,10 +20,11 @@ using json = nlohmann::json;
 #define NOTCOM 0
 #define END 1
 #define ENTRANCE 2
-#define EXECUTE 3
 #define ERROR -1
 #define DATAPACKAGE_MAXSIZE 8
 #define SEND_TIME 1
+#define DEBUG_MODE true
+#define REVERSECONNECT "reverse connect"
 
 int WSAInit() {
 	WSADATA wsadata;
@@ -148,5 +150,10 @@ namespace tcp {
 		}
 		recvmess = DecodeStrInBase64(recvmess);
 		return 1;
+	}
+}
+void DebugLog(string str) {
+	if (DEBUG_MODE) {
+		cout << str << endl;
 	}
 }

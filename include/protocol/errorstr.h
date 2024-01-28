@@ -1,0 +1,10 @@
+#pragma once
+#define SENDERROR "发送错误"
+#define RECVERROR "接收错误"
+#define IPEMPTY "IP地址不能为空"
+#define IPERROR "IP地址格式不正确"
+#define NOT_ANY_COMMAND "不是任何命令"
+#define DISCONNECT "连接已断开"
+#define NODATA "没有收到数据"
+#define SHUTDOWN_ERROR "无法关闭套接字操作"
+#define COLSESOCKET_ERROR "无法关闭套接字"
