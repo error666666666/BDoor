@@ -154,6 +154,6 @@ namespace tcp {
 }
 void DebugLog(string str) {
 	if (DEBUG_MODE) {
-		cout << str << endl;
+		cout << "DebugLog:" << str << endl;
 	}
 }

@@ -233,8 +233,6 @@ private:
 					return END;
 				}
 				int Result;
-				connect_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-				connect(connect_socket, (const sockaddr*)&connect_addr, sizeof(connect_addr));
 				Result = tcp::SendBase64(connect_socket, FormatJson(name, command).dump());
 				if (Result == -1) {
 					returnmess = SENDERROR;
@@ -260,19 +258,6 @@ private:
 				}
 				else {
 					returnmess = DecodeStrInBase64(json::parse(recvmess)[CONTENT]);
-					Result = shutdown(connect_socket, SD_BOTH);
-					if (Result == SOCKET_ERROR) {
-						wprintf(L"shutdown failed with error: %d\n", WSAGetLastError());
-						returnmess = SHUTDOWN_ERROR;
-						return ERROR;
-					}
-					if (connect_socket != INVALID_SOCKET) { 
-						Result = closesocket(connect_socket);
-						if (Result == SOCKET_ERROR) {
-							wprintf(L"closesocket failed with error: %d\n", WSAGetLastError());
-							returnmess = COLSESOCKET_ERROR;
-						}
-					}
 					return ENTRANCE;
 				}
 			}	
@@ -345,6 +330,8 @@ public:
 			}
 			bool is_com = false;
 			int Result;
+			connect_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			connect(connect_socket, (const sockaddr*)&connect_addr, sizeof(connect_addr));
 			for (int i = 0; i < command_list.size(); i++) {
 				bool is_entrance = false;
 				if (entrance != nullptr) {
@@ -354,7 +341,20 @@ public:
 				else {
 					Result = command_list[i]->Func(command, returnmess);
 				}
-				if (Result != 0) {
+				if (Result != NOTCOM) {
+					int Result2 = shutdown(connect_socket, SD_BOTH);
+					if (Result2 == SOCKET_ERROR) {
+						wprintf(L"shutdown failed with error: %d\n", WSAGetLastError());
+						returnmess = SHUTDOWN_ERROR;
+						return ERROR;
+					}
+					if (connect_socket != INVALID_SOCKET) {
+						Result2 = closesocket(connect_socket);
+						if (Result2 == SOCKET_ERROR) {
+							wprintf(L"closesocket failed with error: %d\n", WSAGetLastError());
+							returnmess = COLSESOCKET_ERROR;
+						}
+					}
 					is_com = true;
 				}
 				switch (Result)

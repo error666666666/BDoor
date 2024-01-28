@@ -146,8 +146,14 @@ private:
 					returnmess = CMDERROR;
 				}
 				int Result = tcp::SendBase64(connect_socket, FormatJson(name, EncodeStrInBase64(returnmess)).dump());
-				if (Result == -1) {DebugLog(SENDERROR);}
-				else if (Result == 0) {DebugLog(DISCONNECT);}
+				if (Result == -1) {
+					DebugLog(SENDERROR);
+					return -1;
+				}
+				else if (Result == 0) {
+					DebugLog(DISCONNECT);
+					return -1;
+				}
 				DebugLog(returnmess);
 				return 1;
 			}
@@ -161,7 +167,7 @@ private:
 	vector<RemoteCommand*> remote_command_list = { &cmd };
 public:
 	int Func() override{
-		cout << "TCP线程启动" << endl;
+		DebugLog("TCP线程启动");
 		SOCKET listen_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		sockaddr_in listen_addr;
 		listen_addr.sin_family = AF_INET;
@@ -177,8 +183,14 @@ public:
 			DebugLog(inet_ntoa(connect_addr.sin_addr));
 			string recvmess;
 			int Result = tcp::RecvBase64(connect_socket, recvmess);
-			if (Result == -1) { DebugLog(RECVERROR); }
-			else if (Result == 0) { DebugLog(DISCONNECT); }
+			if (Result == -1) {
+				DebugLog(RECVERROR);
+				continue;
+			}
+			else if (Result == 0) {
+				DebugLog(DISCONNECT);
+				continue;
+			}
 			DebugLog(string(inet_ntoa(connect_addr.sin_addr)) + "/TCP>" + recvmess);
 			for (int i = 0; i < remote_command_list.size(); i++) {
 				remote_command_list[i]->Func(recvmess);
