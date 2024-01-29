@@ -121,10 +121,8 @@ namespace udp {
 			}
 		}
 		if (Result == SOCKET_ERROR) {
-			if (WSAGetLastError() != 10060) {
-				DebugLog("recvfrom failed with error: " + to_string(WSAGetLastError()));
-				return -1;
-			}
+			DebugLog("recvfrom failed with error: " + to_string(WSAGetLastError()));
+			return -1;
 		}
 		else if (Result == 0) {
 			DebugLog(DISCONNECT);
@@ -233,10 +231,8 @@ namespace tcp {
 			}
 		}
 		if (Result == SOCKET_ERROR) {
-			if (WSAGetLastError() != 10060) {
-				DebugLog("recv failed with error: " + to_string(WSAGetLastError()));
-				return -1;
-			}		
+			DebugLog("recv failed with error: " + to_string(WSAGetLastError()));
+			return -1;	
 		}
 		else if (Result == 0) {
 			DebugLog(DISCONNECT);
