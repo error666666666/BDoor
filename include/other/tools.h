@@ -7,6 +7,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iostream>
+#include <other/base64.h>
 #define ASCII " !\"#$%&,()*+'-./0123456789:;<=>?@[\\]^_{|}`abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 using namespace std;
 
@@ -80,12 +81,12 @@ bool check_ip(string ip){
 						
 }
 
-template <class T>
+/*template <class T>
 int length(const T arr[]){
 	
 	return sizeof(arr) / sizeof(arr[0]);
 
-}
+}*/
 
 bool operator==(const sockaddr_in& addr1, const sockaddr_in& addr2) {
 
@@ -119,7 +120,7 @@ int indexOfCode(const char c) {
 	}
 	return 0;
 }
-std::string encodeBase64(string str) {
+/*std::string encodeBase64(string str) {
 	unsigned char* input = (unsigned char*)str.c_str();
 	int input_len = str.size();
 	const char* code = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -170,9 +171,9 @@ std::string encodeBase64(string str) {
 	}
 
 	return output_str;
-}
+}*/
 
-std::string decodeBase64(std::string input) {
+/*std::string decodeBase64(std::string input) {
 	unsigned char input_char[4];
 	unsigned char output_char[4];
 	int output_num = 0;
@@ -194,7 +195,7 @@ std::string decodeBase64(std::string input) {
 	}
 
 	return output_str;
-}
+}*/
 string splicing_string(vector<string> &vec_str,const string splits) {
 	string str;
 	for (int i = 0; i < vec_str.size(); i++) {
@@ -203,43 +204,54 @@ string splicing_string(vector<string> &vec_str,const string splits) {
 	}
 	return str;
 }
-string EncodeStrInBase64(string cmd_mess) {
-	vector<string>cmd_mess_split_endl;
-	split_string(cmd_mess, "\n", cmd_mess_split_endl);
-	vector<vector<string>> cmd_mess_split;
-	for (int i = 0; i < cmd_mess_split_endl.size(); i++) {
+/*string EncodeStrInBase64(string mess) {
+	vector<string>mess_split_endl;
+	split_string(mess, "\n", mess_split_endl);
+	vector<vector<string>> mess_split;
+	for (int i = 0; i < mess_split_endl.size(); i++) {
 		vector<string> split_space;
-		split_string(cmd_mess_split_endl[i], " ", split_space);
-		cmd_mess_split.push_back(split_space);
+		split_string(mess_split_endl[i], " ", split_space);
+		mess_split.push_back(split_space);
 	}
-	for (int i = 0; i < cmd_mess_split.size(); i++) {
-		for (int j = 0; j < cmd_mess_split[i].size(); j++) {
-			cmd_mess_split[i][j] = encodeBase64(cmd_mess_split[i][j]);
+	for (int i = 0; i < mess_split.size(); i++) {
+		for (int j = 0; j < mess_split[i].size(); j++) {
+			mess_split[i][j] = encodeBase64(mess_split[i][j]);
 		}
 	}
 	vector<string> encode_ves;
-	for (int i = 0; i < cmd_mess_split.size(); i++) {
-		encode_ves.push_back(splicing_string(cmd_mess_split[i], " "));
+	for (int i = 0; i < mess_split.size(); i++) {
+		encode_ves.push_back(splicing_string(mess_split[i], " "));
 	}
 	return splicing_string(encode_ves, "\n");
+}*/
+/*string DecodeStrInBase64(string mess) {
+	vector<string>mess_split_endl;
+	split_string(mess, "\n", mess_split_endl);
+	vector<vector<string>> mess_split;
+	for (int i = 0; i < mess_split_endl.size(); i++) {
+		vector<string> split_space;
+		split_string(mess_split_endl[i], " ", split_space);
+		mess_split.push_back(split_space);
+	}
+	for (int i = 0; i < mess_split.size(); i++) {
+		for (int j = 0; j < mess_split[i].size(); j++) {
+			mess_split[i][j] = decodeBase64(mess_split[i][j]);
+		}
+	}
+	vector<string> decode_ves;
+	for (int i = 0; i < mess_split.size(); i++) {
+		decode_ves.push_back(splicing_string(mess_split[i], " "));
+	}
+	return splicing_string(decode_ves, "\n");
+}*/
+template<class T>
+int VectorFind(vector<T> vec,T t){
+	for (int i = 0; i < vec.size(); i++) {
+		if (vec[i] == t) { return i; }
+	}
+	return NULL;
 }
-string DecodeStrInBase64(string cmd_mess) {
-	vector<string>cmd_mess_split_endl;
-	split_string(cmd_mess, "\n", cmd_mess_split_endl);
-	vector<vector<string>> cmd_mess_split;
-	for (int i = 0; i < cmd_mess_split_endl.size(); i++) {
-		vector<string> split_space;
-		split_string(cmd_mess_split_endl[i], " ", split_space);
-		cmd_mess_split.push_back(split_space);
-	}
-	for (int i = 0; i < cmd_mess_split.size(); i++) {
-		for (int j = 0; j < cmd_mess_split[i].size(); j++) {
-			cmd_mess_split[i][j] = decodeBase64(cmd_mess_split[i][j]);
-		}
-	}
-	vector<string> encode_ves;
-	for (int i = 0; i < cmd_mess_split.size(); i++) {
-		encode_ves.push_back(splicing_string(cmd_mess_split[i], " "));
-	}
-	return splicing_string(encode_ves, "\n");
+template<class T>
+int lengtharr(T t[]) {
+	return sizeof(t)/ sizeof(T);
 }
