@@ -29,7 +29,9 @@ using json = nlohmann::json;
 #define IMAGEFORMAT "ImageFormat"
 #define IMGDATA "ImgData"
 #define TIMEOUT 1000
-#define PACKAGELEN 65500
+#define TCP_PACKAGELEN 60000
+#define UDP_PACKAGELEN 1024
+#define PACKAGE_EXTRA 500
 //#define REVERSECONNECT "reverse connect"
 vector<string> image_format = { "bmp","emf","wmf","jpeg","png","gif","tiff","exif","icon","heif","webp" };
 vector<GUID> GUID_vec = { Gdiplus::ImageFormatBMP,Gdiplus::ImageFormatEMF ,Gdiplus::ImageFormatWMF,
@@ -69,50 +71,66 @@ json FormatJson(string command_name) {
 
 namespace udp {
 	int SendtoBase64(SOCKET s,sockaddr_in addr, string sendmess) {
-		sendmess = EncodeBase64(sendmess,false);
-		int Result = NULL;
+		sendmess = EncodeBase64(sendmess, false) + FIN_CHAR;
+		int Result;
+		string submess;
+		int num = 1;
 		for (int i = 0; i < sendmess.size(); i++) {
-			Result = sendto(s, &sendmess[i], sizeof(sendmess[i]), 0,(const sockaddr *)&addr,sizeof(addr));
+			if (sendmess.size() - i >= UDP_PACKAGELEN) {
+				submess = sendmess.substr(i, UDP_PACKAGELEN);
+				i += UDP_PACKAGELEN - 1;
+			}
+			else {
+				submess = sendmess.substr(i, sendmess.size() - i);
+				i += sendmess.size() - 1;
+				DebugLog("last package: " + to_string(submess.size()+1));
+			}
+
+			Result = sendto(s, submess.c_str(), submess.size() + 1, 0,(const sockaddr *)&addr,sizeof(addr));
+			DebugLog("package num: " + to_string(num));
+			DebugLog("package len: " + to_string(submess.size() + 1));
+			num++;
 			if (Result <= 0) { break; }
 		}
 		if (Result == SOCKET_ERROR) {
-			wprintf(L"sendto failed with error: %d\n", WSAGetLastError());
+			DebugLog("sendto failed with error: " + to_string(WSAGetLastError()));
 			return -1;
 		}
 		else if (Result == 0) {
-			cout << "连接已断开" << endl;
-			return 0;
-		}
-		Result = sendto(s, FIN_CHAR, sizeof(FIN_CHAR), 0,(const sockaddr *)&addr,sizeof(addr));
-		if (Result == SOCKET_ERROR) {
-			wprintf(L"sendto failed with error: %d\n", WSAGetLastError());
-			return -1;
-		}
-		else if (Result == 0) {
-			cout << "连接已断开" << endl;
+			DebugLog(DISCONNECT);
 			return 0;
 		}
 		return 1;
 	}
 	int RecvfromBase64(SOCKET s,sockaddr_in &sender_addr,string &recvmess) {
-		recvmess = "";
-		int Result = NULL;
-		char buffer[1024];
+		recvmess.clear();
+		char buf[UDP_PACKAGELEN+PACKAGE_EXTRA];
+		int Result;
 		int sender_addr_len = sizeof(sender_addr);
-		do {
-			memset(buffer, 0, sizeof(buffer));
-			Result = recvfrom(s, buffer, sizeof(buffer), 0, (sockaddr*)&sender_addr, &sender_addr_len);
-			recvmess += buffer;
-		} while (string(buffer) != string(FIN_CHAR)&&Result > 0);
+		while (true) {
+			memset(buf, 0, sizeof(buf));
+			Result = recvfrom(s, buf, sizeof(buf), 0,(sockaddr *)&sender_addr,&sender_addr_len);
+			DebugLog("buf strlen: " + to_string(strlen(buf)));
+			if (Result <= 0) { break; }
+			else {
+				recvmess += buf;
+				if (recvmess.back() == *FIN_CHAR) {
+					recvmess.erase(recvmess.size() - 1);
+					break;
+				}
+			}
+		}
 		if (Result == SOCKET_ERROR) {
-			wprintf(L"recvfrom failed with error: %d\n", WSAGetLastError());
-			return -1;
+			if (WSAGetLastError() != 10060) {
+				DebugLog("recvfrom failed with error: " + to_string(WSAGetLastError()));
+				return -1;
+			}
 		}
 		else if (Result == 0) {
-			cout << "连接已断开" << endl;
+			DebugLog(DISCONNECT);
 			return 0;
 		}
-		recvmess = DecodeBase64(recvmess,false);
+		recvmess = DecodeBase64(recvmess, false);
 		return 1;
 	}
 }
@@ -172,9 +190,9 @@ namespace tcp {
 		string submess;
 		int num = 1;
 		for (int i = 0; i < sendmess.size(); i++) {
-			if (sendmess.size() - i >= PACKAGELEN) {
-				submess = sendmess.substr(i, PACKAGELEN);
-				i += PACKAGELEN - 1;
+			if (sendmess.size() - i >= TCP_PACKAGELEN) {
+				submess = sendmess.substr(i, TCP_PACKAGELEN);
+				i += TCP_PACKAGELEN - 1;
 			}
 			else {
 				submess = sendmess.substr(i, sendmess.size() - i);
@@ -199,7 +217,7 @@ namespace tcp {
 	}
 	int RecvBase64(SOCKET s, string& recvmess) {
 		recvmess.clear();
-		char buf[65535];
+		char buf[TCP_PACKAGELEN+PACKAGE_EXTRA];
 		int Result;
 		while (true) {
 			memset(buf, 0, sizeof(buf));

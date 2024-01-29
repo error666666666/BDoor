@@ -119,8 +119,14 @@ public:
 			string recvmess;
 			DebugLog("等待接收");
 			Result = udp::RecvfromBase64(udp_socket, sender_addr, recvmess);
-			if (Result == -1) { DebugLog(RECVERROR); }
-			else if (Result == 0) { DebugLog(DISCONNECT); }
+			if (Result == -1) { 
+				DebugLog(RECVERROR);
+				continue;
+			}
+			else if (Result == 0) {
+				DebugLog(DISCONNECT); 
+				continue;
+			}
 			DebugLog(string(inet_ntoa(sender_addr.sin_addr)) + "/UDP>" + recvmess);
 			for (int i = 0; i < remote_command_list.size(); i++) {
 				remote_command_list[i]->Func(recvmess);
@@ -236,6 +242,18 @@ public:
 			sockaddr_in connect_addr;
 			int connect_addr_len = sizeof(connect_addr);
 			connect_socket = accept(listen_socket, (sockaddr*)&connect_addr, &connect_addr_len);
+			int Timeout = TIMEOUT;
+			//设置发送超时为1000ms
+			if (SOCKET_ERROR == setsockopt(this->connect_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&Timeout, sizeof(int)))
+			{
+				fprintf(stderr, "Set SO_SNDTIMEO error !\n");
+			}
+
+			//设置接收超时为1000ms
+			if (SOCKET_ERROR == setsockopt(this->connect_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&Timeout, sizeof(int)))
+			{
+				fprintf(stderr, "Set SO_RCVTIMEO error !\n");
+			}
 			DebugLog(inet_ntoa(connect_addr.sin_addr));
 			string recvmess;
 			int Result = tcp::RecvBase64(connect_socket, recvmess);

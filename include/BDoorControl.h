@@ -107,7 +107,7 @@ private:
 					return ERROR;
 				}
 				
-				returnmess = DecodeBase64(json::parse(recvmess)[CONTENT].dump(), false);
+				returnmess = DecodeBase64(string(json::parse(recvmess)[CONTENT]), false);
 				return ENTRANCE;
 			}
 		}
@@ -131,6 +131,18 @@ public:
 		bindport(udp_socket, (const sockaddr*)&addr, sizeof(addr));
 		udp_addr.sin_family = AF_INET;
 		udp_addr.sin_port = htons(UDP_PORT);
+		int Timeout = TIMEOUT;
+		//设置发送超时为1000ms
+		if (SOCKET_ERROR == setsockopt(this->udp_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&Timeout, sizeof(int)))
+		{
+			fprintf(stderr, "Set SO_SNDTIMEO error !\n");
+		}
+
+		//设置接收超时为1000ms
+		if (SOCKET_ERROR == setsockopt(this->udp_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&Timeout, sizeof(int)))
+		{
+			fprintf(stderr, "Set SO_RCVTIMEO error !\n");
+		}
 	}
 	~UDP() {
 		if (udp_socket != INVALID_SOCKET) {
