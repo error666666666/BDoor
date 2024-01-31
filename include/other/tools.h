@@ -8,11 +8,19 @@
 #include <ws2tcpip.h>
 #include <iostream>
 #include <other/base64.h>
+#include <atlimage.h>
+#include <fstream>
 #define ASCII " !\"#$%&,()*+'-./0123456789:;<=>?@[\\]^_{|}`abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+#define CMD_RETURN_TXT_NAME "cmd_return.txt"
+#define CMDERROR "cmd命令执行失败"
+#define DEBUG_MODE true
 using namespace std;
 
-
-
+void DebugLog(string str) {
+	if (DEBUG_MODE) {
+		cout << "DebugLog:" << str << endl;
+	}
+}
 //分割字符串 
 void split_string(const string str, const string splits, vector<string>& res)
 {
@@ -81,13 +89,6 @@ bool check_ip(string ip){
 						
 }
 
-/*template <class T>
-int length(const T arr[]){
-	
-	return sizeof(arr) / sizeof(arr[0]);
-
-}*/
-
 bool operator==(const sockaddr_in& addr1, const sockaddr_in& addr2) {
 
 	return addr1.sin_family == addr2.sin_family && addr1.sin_port == addr2.sin_port && addr1.sin_addr.s_addr == addr2.sin_addr.s_addr;
@@ -120,82 +121,6 @@ int indexOfCode(const char c) {
 	}
 	return 0;
 }
-/*std::string encodeBase64(string str) {
-	unsigned char* input = (unsigned char*)str.c_str();
-	int input_len = str.size();
-	const char* code = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-	unsigned char input_char[3];
-	char output_char[5];
-	int output_num;
-	std::string output_str = "";
-	int near_a = input_len % 3;
-
-	for (int i = 0; i < input_len; i += 3) {
-		memset(input_char, 0, 3);
-		memset(output_char, 61, 5);
-		if (i + 3 <= input_len) {
-			memcpy(input_char, input + i, 3);
-		}
-		else {
-			// 不够凑成3个byte
-			memcpy(input_char, input + i, input_len - i);
-			output_num = ((int)input_char[0] << 16) + ((int)input_char[1] << 8) + (int)input_char[2];
-
-			if (near_a == 1) {
-				output_char[0] = code[((output_num >> 18) & 0x3f)];
-				output_char[1] = code[((output_num >> 12) & 0x3f)];
-				output_char[2] = '=';
-				output_char[3] = '=';
-				output_char[4] = '\0';
-			}
-
-			if (near_a == 2) {
-				output_char[0] = code[((output_num >> 18) & 0x3f)];
-				output_char[1] = code[((output_num >> 12) & 0x3f)];
-				output_char[2] = code[((output_num >> 6) & 0x3f)];;
-				output_char[3] = '=';
-				output_char[4] = '\0';
-			}
-
-			output_str.append(output_char);
-			break;
-		}
-
-		output_num = ((int)input_char[0] << 16) + ((int)input_char[1] << 8) + (int)input_char[2];
-		output_char[0] = code[((output_num >> 18) & 0x3f)];
-		output_char[1] = code[((output_num >> 12) & 0x3f)];
-		output_char[2] = code[((output_num >> 6) & 0x3f)];
-		output_char[3] = code[((output_num) & 0x3f)];
-		output_char[4] = '\0';
-		output_str.append(output_char);
-	}
-
-	return output_str;
-}*/
-
-/*std::string decodeBase64(std::string input) {
-	unsigned char input_char[4];
-	unsigned char output_char[4];
-	int output_num = 0;
-	int k = 0;
-	std::string output_str = "";
-
-	for (unsigned int i = 0; i < input.size(); i++) {
-		input_char[k] = indexOfCode(input[i]);
-		k++;
-		if (k == 4) {
-			output_num = ((int)input_char[0] << 18) + ((int)input_char[1] << 12) + ((int)input_char[2] << 6) + ((int)input_char[3]);
-			output_char[0] = (unsigned char)((output_num & 0x00FF0000) >> 16);
-			output_char[1] = (unsigned char)((output_num & 0x0000FF00) >> 8);
-			output_char[2] = (unsigned char)(output_num & 0x000000FF);
-			output_char[3] = '\0';
-			output_str.append((char*)output_char);
-			k = 0;
-		}
-	}
-
-	return output_str;
-}*/
 string splicing_string(vector<string> &vec_str,const string splits) {
 	string str;
 	for (int i = 0; i < vec_str.size(); i++) {
@@ -204,46 +129,6 @@ string splicing_string(vector<string> &vec_str,const string splits) {
 	}
 	return str;
 }
-/*string EncodeStrInBase64(string mess) {
-	vector<string>mess_split_endl;
-	split_string(mess, "\n", mess_split_endl);
-	vector<vector<string>> mess_split;
-	for (int i = 0; i < mess_split_endl.size(); i++) {
-		vector<string> split_space;
-		split_string(mess_split_endl[i], " ", split_space);
-		mess_split.push_back(split_space);
-	}
-	for (int i = 0; i < mess_split.size(); i++) {
-		for (int j = 0; j < mess_split[i].size(); j++) {
-			mess_split[i][j] = encodeBase64(mess_split[i][j]);
-		}
-	}
-	vector<string> encode_ves;
-	for (int i = 0; i < mess_split.size(); i++) {
-		encode_ves.push_back(splicing_string(mess_split[i], " "));
-	}
-	return splicing_string(encode_ves, "\n");
-}*/
-/*string DecodeStrInBase64(string mess) {
-	vector<string>mess_split_endl;
-	split_string(mess, "\n", mess_split_endl);
-	vector<vector<string>> mess_split;
-	for (int i = 0; i < mess_split_endl.size(); i++) {
-		vector<string> split_space;
-		split_string(mess_split_endl[i], " ", split_space);
-		mess_split.push_back(split_space);
-	}
-	for (int i = 0; i < mess_split.size(); i++) {
-		for (int j = 0; j < mess_split[i].size(); j++) {
-			mess_split[i][j] = decodeBase64(mess_split[i][j]);
-		}
-	}
-	vector<string> decode_ves;
-	for (int i = 0; i < mess_split.size(); i++) {
-		decode_ves.push_back(splicing_string(mess_split[i], " "));
-	}
-	return splicing_string(decode_ves, "\n");
-}*/
 template<class T>
 int VectorFind(vector<T> vec,T t){
 	for (int i = 0; i < vec.size(); i++) {
@@ -254,4 +139,55 @@ int VectorFind(vector<T> vec,T t){
 template<class T>
 int lengtharr(T t[]) {
 	return sizeof(t)/ sizeof(T);
+}
+int run_cmd_with_txt(string cmd_command, string& mess) {
+	fstream fst;
+	fst.open(CMD_RETURN_TXT_NAME, ios::trunc | ios::out);
+	if (!fst.is_open()) {
+		DebugLog("文件打开失败");
+		return -1;
+	}
+	else { DebugLog("文件打开成功"); }
+	fst.close();
+	cmd_command += string(" >> ") + CMD_RETURN_TXT_NAME;
+	if (system(cmd_command.data()) == -1) {
+		mess = CMDERROR;
+		DebugLog("cmd命令执行失败");
+		return -1;
+	}
+	ifstream ifs;
+	ifs.open(CMD_RETURN_TXT_NAME, ios::in);
+	string remess = "\n";
+	string buf;
+	while (getline(ifs, buf)) { remess += buf + string("\n"); }
+	mess = remess;
+	ifs.close();
+	if (remove(string(CMD_RETURN_TXT_NAME).data()) == 0) { DebugLog("成功删除文件"); }
+	else {
+		DebugLog("无法删除文件");
+		return -1;
+	}
+	return 1;
+}
+vector<string> image_format = { "bmp","emf","wmf","jpeg","png","gif","tiff","exif","icon","heif","webp" };
+vector<GUID> GUID_vec = { Gdiplus::ImageFormatBMP,Gdiplus::ImageFormatEMF ,Gdiplus::ImageFormatWMF,
+Gdiplus::ImageFormatJPEG,Gdiplus::ImageFormatPNG,Gdiplus::ImageFormatGIF,Gdiplus::ImageFormatTIFF,Gdiplus::ImageFormatEXIF,
+Gdiplus::ImageFormatIcon,Gdiplus::ImageFormatHEIF,Gdiplus::ImageFormatWEBP };
+bool GetScreenShot(string filepath) {
+	HDC hdcSrc = GetDC(NULL);
+	int nBitPerPixel = GetDeviceCaps(hdcSrc, BITSPIXEL);
+	int nWidth = GetDeviceCaps(hdcSrc, HORZRES);
+	int nHeight = GetDeviceCaps(hdcSrc, VERTRES);
+	CImage image;
+	image.Create(nWidth, nHeight, nBitPerPixel);
+	BitBlt(image.GetDC(), 0, 0, nWidth, nHeight, hdcSrc, 0, 0, SRCCOPY);
+	ReleaseDC(NULL, hdcSrc);
+	image.ReleaseDC();
+	vector<string> filepath_spl;
+	split_string(filepath, "\\", filepath_spl);
+	vector<string>filename_spl;
+	split_string(filepath_spl.back(), ".", filename_spl);
+	int format_pos = VectorFind(image_format, filename_spl.back());
+	image.Save((LPCTSTR)CString(filepath_spl.back().c_str()), GUID_vec[format_pos]);
+	return true;
 }

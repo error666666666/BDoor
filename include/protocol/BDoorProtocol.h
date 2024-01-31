@@ -4,7 +4,6 @@
 #include <nlohmann/json.hpp>
 #include <other/tools.h>
 #include <protocol\errorstr.h>
-#include <atlimage.h>
 #include <fstream>
 #pragma comment(lib,"ws2_32.lib") 
 using json = nlohmann::json;
@@ -25,24 +24,14 @@ using json = nlohmann::json;
 #define ERROR -1
 #define DATAPACKAGE_MAXSIZE 8
 #define SEND_TIME 100
-#define DEBUG_MODE true
 #define IMAGEFORMAT "ImageFormat"
 #define IMGDATA "ImgData"
-#define TIMEOUT 1000
+#define TIMEOUT 3000
 #define TCP_PACKAGELEN 60000
 #define UDP_PACKAGELEN 1024
 #define PACKAGE_EXTRA 500
 //#define REVERSECONNECT "reverse connect"
-vector<string> image_format = { "bmp","emf","wmf","jpeg","png","gif","tiff","exif","icon","heif","webp" };
-vector<GUID> GUID_vec = { Gdiplus::ImageFormatBMP,Gdiplus::ImageFormatEMF ,Gdiplus::ImageFormatWMF,
-Gdiplus::ImageFormatJPEG,Gdiplus::ImageFormatPNG,Gdiplus::ImageFormatGIF,Gdiplus::ImageFormatTIFF,Gdiplus::ImageFormatEXIF,
-Gdiplus::ImageFormatIcon,Gdiplus::ImageFormatHEIF,Gdiplus::ImageFormatWEBP };
 
-void DebugLog(string str) {
-	if (DEBUG_MODE) {
-		cout << "DebugLog:" << str << endl;
-	}
-}
 int WSAInit() {
 	WSADATA wsadata;
 	return WSAStartup(MAKEWORD(2, 2), &wsadata);
@@ -133,57 +122,8 @@ namespace udp {
 	}
 }
 namespace tcp {
-	/*int SendBase64(SOCKET s, string sendmess) {
-		sendmess = EncodeStrInBase64(sendmess);
-		int Result = NULL;
-		for (int i = 0; i < sendmess.size(); i++) {
-			Result = send(s, &sendmess[i], sizeof(sendmess[i]), 0);
-			if (Result <= 0) { break; }
-			//Sleep(SEND_TIME);
-		}
-		if (Result == SOCKET_ERROR) {
-			wprintf(L"send failed with error: %d\n", WSAGetLastError());
-			return -1;
-		}
-		else if (Result == 0) {
-			cout << "连接已断开" << endl;
-			return 0;
-		}
-		Sleep(SEND_TIME);
-		Result = send(s, FIN_CHAR, sizeof(FIN_CHAR), 0);
-		if (Result == SOCKET_ERROR) {
-			wprintf(L"send failed with error: %d\n", WSAGetLastError());
-			return -1;
-		}
-		else if (Result == 0) {
-			cout << "连接已断开" << endl;
-			return 0;
-		}
-		return 1;
-	}*/
-	/*int RecvBase64(SOCKET s, string& recvmess) {
-		recvmess = "";
-		int Result = NULL;
-		char buffer[1024];
-		do {
-			memset(buffer, 0, sizeof(buffer));
-			Result = recv(s, buffer, sizeof(buffer), 0);
-			recvmess += buffer;
-			DebugLog(buffer);
-		} while (string(buffer) != string(FIN_CHAR)&&Result > 0);
-		if (Result == SOCKET_ERROR) {
-			wprintf(L"recv failed with error: %d\n", WSAGetLastError());
-			return -1;
-		}
-		else if (Result == 0) {
-			cout << "连接已断开" << endl;
-			return 0;
-		}
-		recvmess = DecodeStrInBase64(recvmess);
-		return 1;
-	}*/
 	int SendBase64(SOCKET s, string sendmess) {
-		sendmess = EncodeBase64(sendmess,false)+FIN_CHAR;
+		sendmess = EncodeBase64(sendmess, false) + FIN_CHAR;
 		int Result;
 		string submess;
 		int num = 1;
@@ -197,8 +137,8 @@ namespace tcp {
 				i += sendmess.size() - 1;
 				DebugLog("last package: " + to_string(submess.size()));
 			}
-			
-			Result = send(s, submess.c_str(), submess.size()+1, 0);
+
+			Result = send(s, submess.c_str(), submess.size() + 1, 0);
 			DebugLog("package num: " + to_string(num));
 			num++;
 			if (Result <= 0) { break; }
@@ -207,7 +147,7 @@ namespace tcp {
 			DebugLog("send failed with error: " + to_string(WSAGetLastError()));
 			return -1;
 		}
-		else if(Result == 0){
+		else if (Result == 0) {
 			DebugLog(DISCONNECT);
 			return 0;
 		}
@@ -215,7 +155,7 @@ namespace tcp {
 	}
 	int RecvBase64(SOCKET s, string& recvmess) {
 		recvmess.clear();
-		char buf[TCP_PACKAGELEN+PACKAGE_EXTRA];
+		char buf[TCP_PACKAGELEN + PACKAGE_EXTRA];
 		int Result;
 		while (true) {
 			memset(buf, 0, sizeof(buf));
@@ -224,7 +164,7 @@ namespace tcp {
 			if (Result <= 0) { break; }
 			else {
 				recvmess += buf;
-				if(recvmess.back()==*FIN_CHAR){
+				if (recvmess.back() == *FIN_CHAR) {
 					recvmess.erase(recvmess.size() - 1);
 					break;
 				}
@@ -232,13 +172,13 @@ namespace tcp {
 		}
 		if (Result == SOCKET_ERROR) {
 			DebugLog("recv failed with error: " + to_string(WSAGetLastError()));
-			return -1;	
+			return -1;
 		}
 		else if (Result == 0) {
 			DebugLog(DISCONNECT);
 			return 0;
 		}
-		recvmess = DecodeBase64(recvmess,false);
+		recvmess = DecodeBase64(recvmess, false);
 		return 1;
 	}
 }
