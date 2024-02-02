@@ -5,7 +5,7 @@ class Downloader {
 private:
 	string data = "";
 public:
-	int Download(string filepath) {
+	int Download() {
 		vector<Package> package_vec;
 		vector<bool> is_end(NUMBEROFTHREAD,false);
 		for (int i = 0; i < NUMBEROFTHREAD; i++) {

