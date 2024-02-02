@@ -191,3 +191,17 @@ bool GetScreenShot(string filepath) {
 	image.Save((LPCTSTR)CString(filepath_spl.back().c_str()), GUID_vec[format_pos]);
 	return true;
 }
+bool GetScreenShot(string format, IStream *ist) {
+	HDC hdcSrc = GetDC(NULL);
+	int nBitPerPixel = GetDeviceCaps(hdcSrc, BITSPIXEL);
+	int nWidth = GetDeviceCaps(hdcSrc, HORZRES);
+	int nHeight = GetDeviceCaps(hdcSrc, VERTRES);
+	CImage image;
+	image.Create(nWidth, nHeight, nBitPerPixel);
+	BitBlt(image.GetDC(), 0, 0, nWidth, nHeight, hdcSrc, 0, 0, SRCCOPY);
+	ReleaseDC(NULL, hdcSrc);
+	image.ReleaseDC();
+	int format_pos = VectorFind(image_format, format);
+	image.Save(ist, GUID_vec[format_pos]);
+	return true;
+}

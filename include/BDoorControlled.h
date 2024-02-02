@@ -2,6 +2,7 @@
 #include <protocol/BDoorProtocol.h>
 #include<vector>
 #include <other\tools.h>
+#include <module\module.h>
 class Command {
 private:
 	const string name = "command";

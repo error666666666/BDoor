@@ -332,6 +332,15 @@ private:
 		}
 		string GetName()override { return name; }
 	};
+	class Download:	public Command {
+	private:
+		const string name = "download";
+	public:
+		int Func(string command, string& returnmess) override{
+
+		}
+		string GetName()override {return name;}
+	};
 	const string name = "tcp";
 	SOCKET /*listen_socket,*/ connect_socket;
 	sockaddr_in connect_addr/*, listen_addr*/;
