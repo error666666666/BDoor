@@ -171,6 +171,37 @@ private:
 		}
 		string GetName()override {return name;}
 	};
+	class STUDUpload:public RemoteCommand {
+	private:
+		const string name = "studupload";
+		SOCKET& tcp_socket;
+		sockaddr_in& tcp_addr;
+		STUDUploader stud_uploader = STUDUploader(tcp_socket, tcp_addr);
+	public:
+		STUDUpload(SOCKET& tcp_socket_a, sockaddr_in& tcp_addr_a) :tcp_socket(tcp_socket_a), tcp_addr(tcp_addr_a) {}
+		int Func(string command)override {
+			json com_json = json::parse(command);
+			if (com_json[COMMANDNAME] == "studdownload") {
+				int Result;
+				Result = stud_uploader.LoadFile(com_json["filepath"]);
+				if (Result == 1) {
+					Result = tcp::SendBase64(tcp_socket, STUD_SUCCESS);
+					if (Result <= 0) { return Result; }
+				}
+				else if (Result == -1) {
+					Result = tcp::SendBase64(tcp_socket, STUD_FAILED);
+					if (Result <= 0) { return Result; }
+					return 1;
+				}
+				Result = stud_uploader.Upload();
+				return 1;
+			}
+			else {
+				return 0;
+			}
+		}
+		string GetName()override { return name; }
+	};
 	const string name = "tcp";
 	SOCKET connect_socket;
 	Cmd cmd = Cmd(connect_socket);

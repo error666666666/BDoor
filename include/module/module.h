@@ -1,4 +1,2 @@
 #pragma once
-#include<module\Downloader.h>
-#include<module\Uploader.h>
-#include<module\mtftprotocol.h>
+#include<module\single thread DU\all.h>
